@@ -1,26 +1,54 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { FinanceProvider } from "@/hooks/use-finance";
+import { BottomNav, type TabKey } from "@/components/BottomNav";
+import { Dashboard } from "@/components/tabs/Dashboard";
+import { Historico } from "@/components/tabs/Historico";
+import { Metas } from "@/components/tabs/Metas";
+import { Investimentos } from "@/components/tabs/Investimentos";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Bolso Sem Neura — Controle financeiro inteligente" },
+      { name: "description", content: "Controle de gastos e investimentos com IA. Modo escuro premium, mobile-first." },
+      { property: "og:title", content: "Bolso Sem Neura" },
+      { property: "og:description", content: "Seu dinheiro e investimentos controlados por IA." },
+    ],
+  }),
+  component: AppShell,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
+function AppShell() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<TabKey>("dashboard");
 
-function Index() {
-  return <PlaceholderIndex />;
+  useEffect(() => {
+    if (!loading && !user) navigate({ to: "/auth" });
+  }, [loading, user, navigate]);
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <FinanceProvider>
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto max-w-md px-5 pb-28">
+          {tab === "dashboard" && <Dashboard />}
+          {tab === "historico" && <Historico />}
+          {tab === "metas" && <Metas />}
+          {tab === "investimentos" && <Investimentos />}
+        </main>
+        <BottomNav active={tab} onChange={setTab} />
+      </div>
+    </FinanceProvider>
+  );
 }
