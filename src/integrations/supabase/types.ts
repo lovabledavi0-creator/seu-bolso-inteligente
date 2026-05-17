@@ -82,16 +82,19 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
+          security_pin_hash: string | null
         }
         Insert: {
           created_at?: string
           display_name?: string
           id: string
+          security_pin_hash?: string | null
         }
         Update: {
           created_at?: string
           display_name?: string
           id?: string
+          security_pin_hash?: string | null
         }
         Relationships: []
       }
