@@ -3,8 +3,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useFinance } from "@/hooks/use-finance";
 import { parseTransacao } from "@/lib/parse-transaction";
 import { brl, ddmm } from "@/lib/format";
-import { Eye, EyeOff, LogOut, Mic, Send, Sparkles, ShoppingCart, Car, Utensils, Home as HomeIcon, Heart, Briefcase, PiggyBank, Wallet } from "lucide-react";
+import { Eye, EyeOff, Settings, Mic, Send, Sparkles, ShoppingCart, Car, Utensils, Home as HomeIcon, Heart, Briefcase, PiggyBank, Wallet, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { SettingsSheet } from "@/components/SettingsSheet";
 
 const ICON_MAP: Record<string, typeof Car> = {
   Transporte: Car, Alimentação: Utensils, Lazer: Sparkles, Moradia: HomeIcon,
@@ -12,11 +13,13 @@ const ICON_MAP: Record<string, typeof Car> = {
 };
 
 export function Dashboard() {
-  const { displayName, signOut } = useAuth();
+  const { displayName, user, hasPin } = useAuth();
   const { transacoes, receitasMes, despesasMes, saldoTotal, addTransacao } = useFinance();
   const [hide, setHide] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const emailUnconfirmed = user && !user.email_confirmed_at;
 
   const recentes = transacoes.slice(0, 5);
 
@@ -52,13 +55,27 @@ export function Dashboard() {
           <h1 className="text-2xl font-bold leading-tight">{displayName || "Usuário"} 👋</h1>
         </div>
         <button
-          onClick={() => signOut()}
-          className="h-11 w-11 rounded-full bg-surface flex items-center justify-center hover:bg-secondary transition"
-          aria-label="Sair"
+          onClick={() => setSettingsOpen(true)}
+          className="relative h-11 w-11 rounded-full bg-surface flex items-center justify-center hover:bg-secondary transition"
+          aria-label="Configurações"
         >
-          <LogOut className="h-5 w-5" />
+          <Settings className="h-5 w-5" />
+          {(!hasPin || emailUnconfirmed) && (
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+          )}
         </button>
       </div>
+
+      {emailUnconfirmed && (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-destructive">Confirme seu e-mail</p>
+            <p className="text-[11px] text-destructive/80">Enviamos um link para {user?.email}. Verifique sua caixa de entrada.</p>
+          </div>
+          <button onClick={() => setSettingsOpen(true)} className="text-[11px] font-semibold text-destructive underline">Reenviar</button>
+        </div>
+      )}
 
       {/* Card saldo */}
       <div className="rounded-3xl bg-gradient-to-br from-surface to-secondary p-6 border border-border shadow-xl">
@@ -147,6 +164,7 @@ export function Dashboard() {
           </ul>
         )}
       </div>
+      {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
