@@ -53,6 +53,7 @@ type FinanceCtx = {
   addTransacao: (t: Omit<Transacao, "id" | "user_id" | "data"> & { data?: string }) => Promise<void>;
   removeTransacao: (id: string) => Promise<void>;
   addInvestimento: (i: Omit<Investimento, "id" | "user_id" | "nome">) => Promise<void>;
+  updateInvestimento: (id: string, patch: Partial<Pick<Investimento, "quantidade" | "preco_medio" | "data_compra">>) => Promise<void>;
   removeInvestimento: (id: string) => Promise<void>;
   addMeta: (m: { nome: string; valor_alvo: number; data_limite?: string | null }) => Promise<void>;
   updateMetaProgresso: (id: string, valor: number) => Promise<void>;
@@ -133,6 +134,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setInvestimentos((prev) => [data as Investimento, ...prev]);
   };
 
+  const updateInvestimento: FinanceCtx["updateInvestimento"] = async (id, patch) => {
+    const { data, error } = await supabase
+      .from("investimentos").update(patch).eq("id", id).select().single();
+    if (error) throw error;
+    setInvestimentos((prev) => prev.map((i) => i.id === id ? (data as Investimento) : i));
+  };
+
   const removeInvestimento = async (id: string) => {
     const { error } = await supabase.from("investimentos").delete().eq("id", id);
     if (error) throw error;
@@ -190,7 +198,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{
       transacoes, investimentos, metas, cotacoes, loading,
       ...derived,
-      addTransacao, removeTransacao, addInvestimento, removeInvestimento,
+      addTransacao, removeTransacao, addInvestimento, updateInvestimento, removeInvestimento,
       addMeta, updateMetaProgresso, removeMeta, refreshCotacoes,
     }}>
       {children}

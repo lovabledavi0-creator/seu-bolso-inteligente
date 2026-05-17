@@ -8,6 +8,7 @@ import { Historico } from "@/components/tabs/Historico";
 import { Metas } from "@/components/tabs/Metas";
 import { Investimentos } from "@/components/tabs/Investimentos";
 import { Loader2 } from "lucide-react";
+import { PinGate } from "@/components/PinGate";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/")({
 });
 
 function AppShell() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasPin, pinUnlocked } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>("dashboard");
 
@@ -37,6 +38,8 @@ function AppShell() {
       </div>
     );
   }
+
+  if (hasPin && !pinUnlocked) return <PinGate />;
 
   return (
     <FinanceProvider>

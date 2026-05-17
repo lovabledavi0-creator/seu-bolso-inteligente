@@ -1,12 +1,13 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { useFinance } from "@/hooks/use-finance";
+import { useFinance, type Investimento } from "@/hooks/use-finance";
 import { brl, pct } from "@/lib/format";
-import { Plus, RefreshCw, Trash2, TrendingUp, X, Wallet } from "lucide-react";
+import { Plus, RefreshCw, Trash2, TrendingUp, X, Wallet, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 export function Investimentos() {
-  const { investimentos, cotacoes, totalInvestido, patrimonioInvestido, rentabilidade, rentabilidadePct, addInvestimento, removeInvestimento, refreshCotacoes } = useFinance();
+  const { investimentos, cotacoes, totalInvestido, patrimonioInvestido, rentabilidade, rentabilidadePct, addInvestimento, updateInvestimento, removeInvestimento, refreshCotacoes } = useFinance();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Investimento | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [ticker, setTicker] = useState("");
   const [qtd, setQtd] = useState("");
@@ -125,10 +126,16 @@ export function Investimentos() {
                       <p className={`text-[11px] font-semibold mt-0.5 ${up ? "text-primary" : "text-destructive"}`}>{pct(lucroPct)}</p>
                     </div>
                   </div>
-                  <button onClick={() => removeInvestimento(i.id).catch((e) => toast.error(e.message))}
-                    className="mt-2 text-xs text-muted-foreground hover:text-destructive flex items-center gap-1">
-                    <Trash2 className="h-3 w-3" /> remover
-                  </button>
+                  <div className="mt-2 flex items-center gap-3">
+                    <button onClick={() => setEditing(i)}
+                      className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1">
+                      <Pencil className="h-3 w-3" /> editar cotas
+                    </button>
+                    <button onClick={() => removeInvestimento(i.id).catch((e) => toast.error(e.message))}
+                      className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1">
+                      <Trash2 className="h-3 w-3" /> remover
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -174,6 +181,69 @@ export function Investimentos() {
           </div>
         </div>
       )}
+      {editing && (
+        <EditInvestModal
+          inv={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (patch) => {
+            try {
+              await updateInvestimento(editing.id, patch);
+              toast.success(`${editing.ticker} atualizado!`);
+              setEditing(null);
+            } catch (e: any) { toast.error(e.message); }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditInvestModal({ inv, onClose, onSave }: {
+  inv: Investimento;
+  onClose: () => void;
+  onSave: (patch: { quantidade: number; preco_medio: number; data_compra: string }) => Promise<void>;
+}) {
+  const [qtd, setQtd] = useState(String(inv.quantidade));
+  const [pm, setPm] = useState(String(inv.preco_medio));
+  const [data, setData] = useState((inv.data_compra ?? "").slice(0, 10));
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const q = parseFloat(qtd.replace(",", "."));
+    const p = parseFloat(pm.replace(",", "."));
+    if (!q || q <= 0) return toast.error("Quantidade inválida");
+    if (!p || p <= 0) return toast.error("Preço médio inválido");
+    setSaving(true);
+    await onSave({ quantidade: q, preco_medio: p, data_compra: data });
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-3xl bg-surface border border-border p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold">Editar {inv.ticker}</h2>
+            <p className="text-xs text-muted-foreground">{inv.nome ?? "Ativo da carteira"}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <label className="block text-xs text-muted-foreground px-1">Quantidade de cotas</label>
+          <input value={qtd} onChange={(e) => setQtd(e.target.value)} inputMode="decimal"
+            className="w-full h-12 rounded-2xl bg-background border border-border px-4 outline-none focus:border-primary" />
+          <label className="block text-xs text-muted-foreground px-1">Preço médio (R$)</label>
+          <input value={pm} onChange={(e) => setPm(e.target.value)} inputMode="decimal"
+            className="w-full h-12 rounded-2xl bg-background border border-border px-4 outline-none focus:border-primary" />
+          <label className="block text-xs text-muted-foreground px-1">Data de compra</label>
+          <input type="date" value={data} onChange={(e) => setData(e.target.value)}
+            className="w-full h-12 rounded-2xl bg-background border border-border px-4 outline-none focus:border-primary text-muted-foreground" />
+          <button type="submit" disabled={saving} className="w-full h-12 rounded-2xl bg-primary text-primary-foreground font-bold disabled:opacity-50">
+            {saving ? "Salvando..." : "Salvar alterações"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
