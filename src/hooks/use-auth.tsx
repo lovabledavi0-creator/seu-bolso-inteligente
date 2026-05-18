@@ -3,16 +3,24 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { hashPin, PIN_UNLOCKED_KEY } from "@/lib/pin";
 
+export type Profile = {
+  display_name: string;
+  profissao: string | null;
+  idade: number | null;
+};
+
 type AuthCtx = {
   user: User | null;
   session: Session | null;
   displayName: string;
+  profile: Profile | null;
   loading: boolean;
   hasPin: boolean;
   pinUnlocked: boolean;
   unlockWithPin: (pin: string) => Promise<boolean>;
   setPin: (pin: string) => Promise<void>;
   removePin: (pin: string) => Promise<boolean>;
+  updateProfile: (patch: Partial<Profile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -23,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [pinHash, setPinHash] = useState<string | null>(null);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,13 +39,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (uid: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("display_name, security_pin_hash")
+      .select("display_name, security_pin_hash, profissao, idade")
       .eq("id", uid)
       .maybeSingle();
-    if (data?.display_name) setDisplayName(data.display_name);
-    const hash = (data as any)?.security_pin_hash ?? null;
+    const d = data as any;
+    if (d?.display_name) setDisplayName(d.display_name);
+    setProfile({
+      display_name: d?.display_name ?? "",
+      profissao: d?.profissao ?? null,
+      idade: d?.idade ?? null,
+    });
+    const hash = d?.security_pin_hash ?? null;
     setPinHash(hash);
-    // Unlock if no PIN set, or if previously unlocked in this session
     if (!hash) setPinUnlocked(true);
     else setPinUnlocked(sessionStorage.getItem(PIN_UNLOCKED_KEY) === uid);
   };
@@ -49,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(() => loadProfile(s.user.id), 0);
       } else {
         setDisplayName("");
+        setProfile(null);
         setPinHash(null);
         setPinUnlocked(false);
         sessionStorage.removeItem(PIN_UNLOCKED_KEY);
@@ -66,6 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProfile = async () => { if (user) await loadProfile(user.id); };
+
+  const updateProfile = async (patch: Partial<Profile>) => {
+    if (!user) throw new Error("Não autenticado");
+    const { error } = await supabase.from("profiles").update(patch as any).eq("id", user.id);
+    if (error) throw error;
+    if (patch.display_name) setDisplayName(patch.display_name);
+    setProfile((p) => ({ ...(p ?? { display_name: "", profissao: null, idade: null }), ...patch }));
+  };
 
   const unlockWithPin = async (pin: string) => {
     if (!user || !pinHash) return false;
@@ -108,10 +131,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      user, session, displayName, loading,
+      user, session, displayName, profile, loading,
       hasPin: !!pinHash, pinUnlocked,
       unlockWithPin, setPin, removePin,
-      refreshProfile, signOut,
+      updateProfile, refreshProfile, signOut,
     }}>
       {children}
     </Ctx.Provider>
