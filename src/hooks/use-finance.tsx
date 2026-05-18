@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchCotacoes, type Cotacao, getNomeAtivo } from "@/lib/cotacoes";
+import { fetchCotacoes, type Cotacao, getNomeAtivo, type TipoInvestimento } from "@/lib/cotacoes";
 
 export type Transacao = {
   id: string;
@@ -21,6 +21,8 @@ export type Investimento = {
   quantidade: number;
   preco_medio: number;
   data_compra: string;
+  tipo: TipoInvestimento;
+  moeda: "BRL" | "USD";
 };
 
 export type Meta = {
@@ -39,21 +41,21 @@ type FinanceCtx = {
   cotacoes: Record<string, Cotacao>;
   loading: boolean;
 
-  // derivados
   receitasMes: number;
   despesasMes: number;
   saldoConta: number;
   patrimonioInvestido: number;
   totalInvestido: number;
-  rentabilidade: number;     // valor
-  rentabilidadePct: number;  // %
+  rentabilidade: number;
+  rentabilidadePct: number;
+  variacaoDia: number;        // R$ ganho/perdido no dia
+  variacaoDiaPct: number;     // % carteira no dia
   saldoTotal: number;
 
-  // ações
   addTransacao: (t: Omit<Transacao, "id" | "user_id" | "data"> & { data?: string }) => Promise<void>;
   removeTransacao: (id: string) => Promise<void>;
-  addInvestimento: (i: Omit<Investimento, "id" | "user_id" | "nome">) => Promise<void>;
-  updateInvestimento: (id: string, patch: Partial<Pick<Investimento, "quantidade" | "preco_medio" | "data_compra">>) => Promise<void>;
+  addInvestimento: (i: Omit<Investimento, "id" | "user_id" | "nome" | "moeda"> & { moeda?: "BRL" | "USD" }) => Promise<void>;
+  updateInvestimento: (id: string, patch: Partial<Pick<Investimento, "quantidade" | "preco_medio" | "data_compra" | "tipo">>) => Promise<void>;
   removeInvestimento: (id: string) => Promise<void>;
   addMeta: (m: { nome: string; valor_alvo: number; data_limite?: string | null }) => Promise<void>;
   updateMetaProgresso: (id: string, valor: number) => Promise<void>;
@@ -83,35 +85,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       supabase.from("metas").select("*").order("created_at", { ascending: false }),
     ]);
     setTransacoes((txs ?? []) as Transacao[]);
-    setInvestimentos((invs ?? []) as Investimento[]);
+    setInvestimentos((invs ?? []) as unknown as Investimento[]);
     setMetas((ms ?? []) as Meta[]);
     setLoading(false);
   }, [user]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Buscar cotações sempre que mudar a lista de ativos
   const refreshCotacoes = useCallback(async () => {
-    const tickers = Array.from(new Set(investimentos.map((i) => i.ticker.toUpperCase())));
-    if (!tickers.length) { setCotacoes({}); return; }
-    const c = await fetchCotacoes(tickers);
+    const ativos = investimentos.map((i) => ({ ticker: i.ticker, tipo: i.tipo }));
+    if (!ativos.length) { setCotacoes({}); return; }
+    const c = await fetchCotacoes(ativos);
     setCotacoes(c);
   }, [investimentos]);
 
   useEffect(() => {
     refreshCotacoes();
-    const id = setInterval(refreshCotacoes, 30000);
+    const id = setInterval(refreshCotacoes, 60000); // 1 min — respeita rate-limit
     return () => clearInterval(id);
   }, [refreshCotacoes]);
 
-  // --- ações ---
   const addTransacao: FinanceCtx["addTransacao"] = async (t) => {
     if (!user) return;
     const { data, error } = await supabase
       .from("transacoes")
       .insert({ ...t, user_id: user.id, data: t.data ?? new Date().toISOString() })
-      .select()
-      .single();
+      .select().single();
     if (error) throw error;
     setTransacoes((prev) => [data as Transacao, ...prev]);
   };
@@ -125,20 +124,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const addInvestimento: FinanceCtx["addInvestimento"] = async (i) => {
     if (!user) return;
     const nome = getNomeAtivo(i.ticker);
+    const moeda = i.moeda ?? (i.tipo === "acao_us" ? "USD" : "BRL");
     const { data, error } = await supabase
       .from("investimentos")
-      .insert({ ...i, ticker: i.ticker.toUpperCase(), nome, user_id: user.id })
-      .select()
-      .single();
+      .insert({ ...i, ticker: i.ticker.toUpperCase(), nome, moeda, user_id: user.id } as any)
+      .select().single();
     if (error) throw error;
-    setInvestimentos((prev) => [data as Investimento, ...prev]);
+    setInvestimentos((prev) => [data as unknown as Investimento, ...prev]);
   };
 
   const updateInvestimento: FinanceCtx["updateInvestimento"] = async (id, patch) => {
     const { data, error } = await supabase
-      .from("investimentos").update(patch).eq("id", id).select().single();
+      .from("investimentos").update(patch as any).eq("id", id).select().single();
     if (error) throw error;
-    setInvestimentos((prev) => prev.map((i) => i.id === id ? (data as Investimento) : i));
+    setInvestimentos((prev) => prev.map((i) => i.id === id ? (data as unknown as Investimento) : i));
   };
 
   const removeInvestimento = async (id: string) => {
@@ -149,18 +148,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const addMeta: FinanceCtx["addMeta"] = async (m) => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from("metas")
-      .insert({ ...m, user_id: user.id })
-      .select()
-      .single();
+    const { data, error } = await supabase.from("metas").insert({ ...m, user_id: user.id }).select().single();
     if (error) throw error;
     setMetas((prev) => [data as Meta, ...prev]);
   };
 
   const updateMetaProgresso = async (id: string, valor: number) => {
-    const { data, error } = await supabase
-      .from("metas").update({ valor_atual: valor }).eq("id", id).select().single();
+    const { data, error } = await supabase.from("metas").update({ valor_atual: valor }).eq("id", id).select().single();
     if (error) throw error;
     setMetas((prev) => prev.map((m) => m.id === id ? (data as Meta) : m));
   };
@@ -171,7 +165,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setMetas((prev) => prev.filter((m) => m.id !== id));
   };
 
-  // --- derivados ---
   const derived = useMemo(() => {
     const now = new Date();
     const ehMesAtual = (d: string) => {
@@ -184,14 +177,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const totalInvestido = investimentos.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_medio), 0);
     const patrimonioInvestido = investimentos.reduce((s, i) => {
-      const preco = cotacoes[i.ticker.toUpperCase()]?.preco ?? Number(i.preco_medio);
+      const cot = cotacoes[i.ticker.toUpperCase()];
+      // Para caixinha/renda fixa, valor = quantidade * preco_medio
+      const preco = cot?.preco ?? Number(i.preco_medio);
       return s + Number(i.quantidade) * preco;
     }, 0);
     const rentabilidade = patrimonioInvestido - totalInvestido;
     const rentabilidadePct = totalInvestido > 0 ? (rentabilidade / totalInvestido) * 100 : 0;
+
+    // Variação do dia ponderada pela posição atual
+    let variacaoDia = 0;
+    for (const i of investimentos) {
+      const cot = cotacoes[i.ticker.toUpperCase()];
+      if (!cot) continue;
+      const posicao = Number(i.quantidade) * cot.preco;
+      variacaoDia += posicao * (cot.variacaoDiaPct / 100);
+    }
+    const variacaoDiaPct = patrimonioInvestido > 0 ? (variacaoDia / patrimonioInvestido) * 100 : 0;
     const saldoTotal = saldoConta + patrimonioInvestido;
 
-    return { receitasMes, despesasMes, saldoConta, totalInvestido, patrimonioInvestido, rentabilidade, rentabilidadePct, saldoTotal };
+    return { receitasMes, despesasMes, saldoConta, totalInvestido, patrimonioInvestido, rentabilidade, rentabilidadePct, variacaoDia, variacaoDiaPct, saldoTotal };
   }, [transacoes, investimentos, cotacoes]);
 
   return (
