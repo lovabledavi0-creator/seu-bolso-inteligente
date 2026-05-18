@@ -19,30 +19,36 @@ export type Database = {
           created_at: string
           data_compra: string
           id: string
+          moeda: string
           nome: string | null
           preco_medio: number
           quantidade: number
           ticker: string
+          tipo: string
           user_id: string
         }
         Insert: {
           created_at?: string
           data_compra?: string
           id?: string
+          moeda?: string
           nome?: string | null
           preco_medio: number
           quantidade: number
           ticker: string
+          tipo?: string
           user_id: string
         }
         Update: {
           created_at?: string
           data_compra?: string
           id?: string
+          moeda?: string
           nome?: string | null
           preco_medio?: number
           quantidade?: number
           ticker?: string
+          tipo?: string
           user_id?: string
         }
         Relationships: []
@@ -82,18 +88,24 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
+          idade: number | null
+          profissao: string | null
           security_pin_hash: string | null
         }
         Insert: {
           created_at?: string
           display_name?: string
           id: string
+          idade?: number | null
+          profissao?: string | null
           security_pin_hash?: string | null
         }
         Update: {
           created_at?: string
           display_name?: string
           id?: string
+          idade?: number | null
+          profissao?: string | null
           security_pin_hash?: string | null
         }
         Relationships: []
