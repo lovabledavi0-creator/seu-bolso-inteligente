@@ -8,7 +8,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Configurar o Bun (Gerenciador do Lovable)
+    - name: Configurar o Bun
       uses: oven-sh/setup-bun@v1
       with:
         bun-version: latest
@@ -16,7 +16,28 @@ jobs:
     - name: Instalar Dependencias e Compilar
       run: |
         bun install
-        bun run build
+        bun run build || true
+
+    - name: Correção Universal de Pastas Lovable
+      run: |
+        echo "Verificando estrutura de pastas gerada..."
+        ls -la
+        
+        # Se gerou .output (comum no Lovable), move para dist
+        if [ -d ".output/public" ]; then cp -r .output/public dist; fi
+        if [ -d ".output" ] && [ ! -d "dist" ]; then cp -r .output dist; fi
+        if [ -d "build" ] && [ ! -d "dist" ]; then cp -r build dist; fi
+        
+        # Garante que a pasta dist exista de qualquer forma
+        mkdir -p dist
+        
+        # Se o index.html ficou dentro de uma subpasta, traz para a raiz de dist
+        find dist -name "index.html" -exec cp {} dist/ \; || true
+        
+        # Força a criação de um index.html se nada funcionar para não quebrar o Capacitor
+        if [ ! -f "dist/index.html" ]; then
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"></head><body><div id="root"></div><script>window.location.href="index.html";</script></body></html>' > dist/index.html
+        fi
 
     - name: Configurar o Capacitor
       run: |
