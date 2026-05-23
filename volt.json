@@ -1,0 +1,8 @@
+{
+  "platform": "android",
+  "android": {
+    "package": "com.lovabledavi0.seubolso",
+    "version": "1.0.0",
+    "name": "Seu Bolso Inteligente"
+  }
+}
