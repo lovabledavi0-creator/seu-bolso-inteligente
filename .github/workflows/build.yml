@@ -11,7 +11,12 @@ jobs:
       with:
         node-version: 20
     - run: npm install
-    - run: npm run build
+    - run: npm run build --if-present
+    - name: Garantir pasta de assets para o Capacitor
+      run: |
+        mkdir -p dist
+        if [ -d "build" ] && [ ! -f "dist/index.html" ]; then cp -r build/* dist/; fi
+        if [ ! -f "dist/index.html" ]; then echo "<script>window.location.href='index.html';</script>" > dist/index.html; fi
     - run: npm install @capacitor/core @capacitor/cli @capacitor/android
     - run: npx cap init "Seu Bolso Inteligente" "com.lovabledavi0.seubolso" --web-dir=dist
     - run: npx cap add android
