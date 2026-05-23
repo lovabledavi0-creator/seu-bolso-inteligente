@@ -1,0 +1,33 @@
+name: Build Android App
+on:
+  push:
+    branches: [ main, master ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - run: npm install
+    - run: npm install @capacitor/core @capacitor/cli @capacitor/android
+    - run: npx cap init "Meu App Lovable" "com.seu.app" --web-dir=dist
+    - run: npx cap add android
+    - run: npm run build
+    - run: npx cap sync android
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+    - name: Build Android Bundle (AAB)
+      run: |
+        cd android
+        ./gradlew bundleRelease
+    - name: Upload App Bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release-bundle
+        path: android/app/build/outputs/bundle/release/*.aab
+        
