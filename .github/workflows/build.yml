@@ -12,9 +12,9 @@ jobs:
         node-version: 20
     - run: npm install
     - run: npm install @capacitor/core @capacitor/cli @capacitor/android
+    - run: npm run build
     - run: npx cap init "Meu App Lovable" "com.seu.app" --web-dir=dist
     - run: npx cap add android
-    - run: npm run build
     - run: npx cap sync android
     - name: Setup Java
       uses: actions/setup-java@v4
